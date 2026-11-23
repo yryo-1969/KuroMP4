@@ -1,0 +1,8 @@
+*.obj
+*.exp
+*.lib
+*.dll
+*.log
+*.zip
+ref/
+dist/
