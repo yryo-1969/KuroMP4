@@ -1,4 +1,4 @@
-# KuroMP4（MP4背景動画プラグイン）
+﻿# KuroMP4（MP4背景動画プラグイン）
 
 MikuMikuDance の背景動画（「背景AVI」）に、`.mp4` などの動画を**変換なしでそのまま**使えるようにする MMDPlugin 用プラグインです。
 
@@ -19,7 +19,7 @@ MMD の背景動画は本来 `.avi` しか読み込めません。そのため�
 
 ## ダウンロードと導入
 
-1. [Releases](../../releases) から `KuroMP4_v1.0.0.zip` をダウンロードして展開します。
+1. [Releases](../../releases) から `KuroMP4_v1.0.1.zip` をダウンロードして展開します。
 2. MMD のフォルダの中の `plugin` フォルダに、`KuroMP4` フォルダごと入れます。
    ```
    MikuMikuDance_v932x64\

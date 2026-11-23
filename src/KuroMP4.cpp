@@ -122,6 +122,7 @@ struct Movie
         UINT32 st = 0;
         if (SUCCEEDED(out->GetUINT32(MF_MT_DEFAULT_STRIDE, &st))) stride = (LONG)st; else stride = (LONG)w * 4;
         out->Release();
+        if (w == 0 || h == 0 || w > 16384 || h > 16384) { LOG("bad frame size %ux%u", w, h); return false; }
         if (fpsN == 0 || fpsD == 0) { fpsN = 30; fpsD = 1; }
         PROPVARIANT pv; PropVariantInit(&pv);
         if (SUCCEEDED(rd->GetPresentationAttribute((DWORD)MF_SOURCE_READER_MEDIASOURCE, MF_PD_DURATION, &pv))) dur100ns = (LONGLONG)pv.uhVal.QuadPart;
@@ -156,17 +157,28 @@ struct Movie
             s->Release();
             if (!b) continue;
             BYTE* p = nullptr; DWORD len = 0;
+            b->GetCurrentLength(&len);                     // contiguous buffer: total bytes
             IMF2DBuffer* b2 = nullptr;
             LONG pitch = stride;
-            bool locked2d = false;
+            bool locked2d = false, locked = false;
             if (SUCCEEDED(b->QueryInterface(IID_PPV_ARGS(&b2))) && SUCCEEDED(b2->Lock2D(&p, &pitch))) locked2d = true;
-            else { b->Lock(&p, nullptr, &len); }
-            // copy to top-down BGRA
-            for (UINT32 y = 0; y < h; ++y) {
-                const BYTE* src = pitch >= 0 ? p + (size_t)y * pitch : p + (size_t)(h - 1 - y) * (-pitch);
-                memcpy(&cur[(size_t)y * w * 4], src, (size_t)w * 4);
-            }
-            if (locked2d) b2->Unlock2D(); else b->Unlock();
+            else if (SUCCEEDED(b->Lock(&p, nullptr, &len))) locked = true;
+            if (p && (locked2d || locked) && pitch != 0) {
+                // never read past the decoded buffer (a broken/odd file may decode smaller than expected)
+                size_t ap = (size_t)(pitch < 0 ? -(LONGLONG)pitch : pitch);
+                size_t rowsAvail = len ? (size_t)len / ap : 0;
+                size_t rows = std::min<size_t>(h, rowsAvail);
+                // plain Lock() with a negative stride gives the buffer start (= bottom row): move p to the top row
+                if (locked && pitch < 0 && rowsAvail > 0) p += (rowsAvail - 1) * ap;
+                size_t bytes = std::min<size_t>((size_t)w * 4, ap);
+                // with a negative pitch p points at the first (top) row and rows go upward in memory
+                for (size_t y = 0; y < rows; ++y) {
+                    const BYTE* src = pitch >= 0 ? p + y * ap : p - y * ap;
+                    memcpy(&cur[y * (size_t)w * 4], src, bytes);
+                }
+                if (rows < h) LOG("short frame: %zu of %u rows (len %lu pitch %ld)", rows, h, len, pitch);
+            } else LOG("buffer lock failed");
+            if (locked2d) b2->Unlock2D(); else if (locked) b->Unlock();
             if (b2) b2->Release();
             b->Release();
             curIdx = IdxOf(ts);
